@@ -1,0 +1,126 @@
+---
+title: "WWhat's the possible factors affecting the number of physicians in one US county in 1990? "
+author: "Yifan Qian / Cheng Qian"
+date: "2019/6/7"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+Abstract: In this project ,we aim to find the relationhship between the response Physcians and various predicators in CDI dataset.We basically divide the project into two models. The initial verson of the two models are "Physicians ¡« log(TotalPop) + LandArea + IncPerCap" and "Physicians ¡« TotalPop + Region" and refit the model using tests or transformation based on the analysis of CDI dataset. In the end, We discovered that the number of relevant predictorsis more than that in the initial model.Moreover, the response and the predictors generally follow logrithmic transformation in the model so that the entire model can be more linearly fit.
+
+Problem and Motivation: Nowadays, People pay more attention to their own health. The health system is improved a lot with advanced technology and skills. The number of physicians is also deemed as an important role in affecting the healthcare system in one county. When the number of physicians is large, citizens can get more access to medical care.We try to access the CDI dataset since it contains comprehensive county demographic information in 1990. 
+  The model we are about to create will indicate the factors that affect the number of physcians. With our model, governors can determine how to make policies to improve the number of physicians,such as changing the policiy of personal income. In addition, the readers can infer the healthcare quality of one conuty based on the demographic information they can access. Therefore, they can make the decision of finding jobs or finding schools more easily based on healthcare environment. 
+  
+Data:The CDI dataset we use provides the county demographic information for 440 of the most populus county in the United States.It provides the information of  14 variables for a single county. These variables probably will have relationships with each other. In our project,we will Physicians as the response and TotalPop,LandArea,IncPerCap,Region,P65,Crimes,Bachelor,Poverty,PersonalInc as predictors in two models. 
+```{r }
+CDI<-readRDS('C:/Users/QIANYIFAN/Desktop/CDI.rds')
+View(CDI)
+attach(CDI)
+a.lm<-lm(Physicians~TotalPop+Region,data=CDI)
+summary(a.lm)
+#plot residuals vs fit plot
+plot(a.lm,which=1)
+#plo Q-Q plot
+plot(a.lm,which=2)
+library(car)
+summary(CDI$TotalPop)
+summary(CDI$Region)
+summary(CDI$PersonalInc)
+Trans.CDI<-powerTransform(cbind(TotalPop,Region)~1,CDI)
+#check power transformation for initial model 
+summary(Trans.CDI)
+testTransform(Trans.CDI,lambda=c(-0.5,1.0))
+a.Trans<-with(CDI,data.frame(Physicians,TotalPop^-0.5,Region))
+CDI.lm<-lm(Physicians~.,data=a.Trans)
+#find the transformation for the response 
+boxCox(CDI.lm)
+b.lm<-lm(log(Physicians)~I(TotalPop^-0.5)+Region,data=CDI)
+plot(b.lm)
+
+#refit the model
+c.lm<-lm(log(Physicians)~I(TotalPop^-0.5)+Region+log(PersonalInc),data=CDI)
+Trans2.CDI<-powerTransform(cbind(TotalPop,Region,PersonalInc)~1,CDI)
+summary(Trans2.CDI)
+summary(c.lm)
+plot(c.lm)
+#setting up the dummy variables in Region
+Xi3<-ifelse(as.character(CDI$Region)=='1',1,0)
+Xi4<-ifelse(as.character(CDI$Region)=='2',1,0)
+Xi5<-ifelse(as.character(CDI$Region)=='3',1,0)
+#fitting the parallel regression model
+d.lm<-lm(log(Physicians)~I(TotalPop^-0.5)+log(PersonalInc)+Xi3+Xi4+Xi5)
+summary(d.lm)
+
+```
+(b)The equation of two continuous variable and one catergorical variable can be written as  E(log(Yi)=¦Âo+¦Â1(Xi1^-0.5^)+¦Â2log(Xi2)+¦Â3Xi3+¦Â4Xi4+¦Â5Xi5 where Yi refers to Physicians,Xi1 refers to TotalPop, Xi2 refers to PersonalInc and Xi3,Xi4,Xi5 refer to the dummy variables 1,2,3 in Region. We set Region 4 as the control group. 
+For Region 1, E(Yi)=¦Âo+¦Â3+¦Â1(Xi1^-0.5^)+¦Â2log(Xi2)=-0.53812-385.81343Xi1^-0.5+0.88103log(Xi2)
+
+For Region 2, E(Yi)=¦Âo+¦Â4+¦Â1(Xi1^-0.5^)+¦Â2log(Xi2)=-0.51982-385.81343Xi1^-0.5+0.88103log(Xi2)
+
+For Region 3, E(Yi)=¦Âo+¦Â5+¦Â1(Xi1^-0.5^)+¦Â2log(Xi2)=-0.43263-385.81343Xi1^-0.5+0.88103log(Xi2)
+
+For Region 4, E(Yi)=¦Âo+¦Â1(Xi1^-0.5^)+¦Â2log(Xi2)=-0.54820-385.81343Xi1^-0.5+0.88103log(Xi2)
+
+This model is a parallel regression model because their mean function only differs from their intercept.
+
+(c)The geographic region doesn't have a significant effect on the number of physicians in a county as the coefficients of three dummy variables are quite small and close to each other. We can remove the factor of Region from the model from now on. 
+
+```{r }
+#check the range of the variables 
+summary(Pop65)
+summary(Crimes)
+summary(Bachelor)
+summary(Poverty)
+summary(PersonalInc)
+# power transformations of additional variables 
+Trans3.CDI<-powerTransform(cbind(Pop65,Crimes,Bachelor,Poverty,PersonalInc)~1,CDI)
+summary(Trans3.CDI)
+#reduced model 
+mod.o<-lm(log(Physicians)~I(TotalPop^-0.5)+log(PersonalInc))
+#full model 
+mod.full=~I(TotalPop^-0.5)+log(PersonalInc)+log(Pop65)+log(Crimes)+log(Bachelor)+log(Poverty)
+#using AIC forward selection method 
+mod.forward<-step(mod.o, mod.full,direction='forward')
+#using BIC backward selection method
+mod.1<-update(mod.o,mod.full)
+mod.backward<-step(mod.1,scope=c(lower=~I(TotalPop^-0.5)),direction='backward')
+```
+The forward selection method and the backward selection method generate the same model. 
+```{r }
+mod.lm<-lm(log(Physicians)~I(TotalPop^-0.5)+log(PersonalInc))
+full.lm<-lm(log(Physicians)~I(TotalPop^-0.5)+log(PersonalInc)+log(Pop65)+log(Crimes)+log(Bachelor)+log(Poverty))
+# conduct partial F to find which model is suitable 
+anova(mod.lm,full.lm)
+```
+(d)Ho:the reduced model is more appropriate vs H1:the full model is more appropriate
+We reject Ho if the p-value is less than 0.05. As the p-value is 2.2e-16, we reject Ho and conclude that  there exsits improvement from adding these extra predictors compared to the first model. 
+
+```{r }
+plot(full.lm)
+s.resid<- rstudent(full.lm)
+as=abs(s.resid)
+# find the index correspond to largest studentized residuals 
+which(as==max(as))
+outlierTest(full.lm)
+full.hats<-hatvalues(full.lm)
+sum(full.hats)
+max(full.hats)
+#find the index correspond to largest hat value
+which(full.hats==max(full.hats))
+#find the index correspond to smallest hat value 
+which(full.hats==min(full.hats))
+n<-length(CDI$Physicians)
+#using the rule of thumb for residuals 
+which(full.hats > 3*sum(full.hats)/n)
+full.cooks<-cooks.distance(full.lm)
+#using rule of thumb for cook's distance
+which(full.cooks > 4/(n-6-1))
+#find influential points 
+influenceIndexPlot(full.lm,vars=c('hat','Cook'),id=TRUE)
+```
+
+(e)We can identify that points with index 1,2,141,381 are influential points. Points with index 1,2 have extremely high hatvalues, which indicate that they deviates from the expected values too much. Points with index 141,381 have large cook distance, which indicates that they have high leverage. Also, point of index 141 have largest studentized redisual. Therefore, these four points are the influential points in the model. 
+
+(f)In this model, we find that the fittest model is log(Physicians)~I(TotalPop^-0.5)+log(PersonalInc)+log(Pop65)+log(Crimes)+log(Bachelor)+log(Poverty). The response and  most of the predicators form logarithmic relatioship. After analysing the dummy variables, we conclude the factor of Region can be removed from the model. Unexpectedly, we find that the lambda for the transformation of predictor TotalPop is -0.5 and it's a rare lambda value for fitting the model. 
